@@ -34,7 +34,7 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         Properties settings = new Properties();
-        try (InputStream defaults =  Thread.currentThread().getContextClassLoader()
+        try (InputStream defaults = Thread.currentThread().getContextClassLoader()
                 .getResourceAsStream("kafka-partition-availability-benchmark.properties")) {
             settings.load(defaults);
         }
@@ -53,6 +53,7 @@ public class Main {
                 new PrometheusMetricsServer(Integer.valueOf(settings.getProperty("prometheus_metrics_port"))));
         Runtime.getRuntime().addShutdownHook(new Thread(CollectorRegistry.defaultRegistry::clear));
 
+        Integer numConcurrentTopicCreations = Integer.valueOf(settings.getProperty("num_concurrent_topic_creations"));
         Integer numConcurrentConsumers = Integer.valueOf(settings.getProperty("num_concurrent_consumers"));
         Integer numConcurrentProducers = Integer.valueOf(settings.getProperty("num_concurrent_producers"));
         Integer numTopics = Integer.valueOf(settings.getProperty("num_topics"));
@@ -68,8 +69,16 @@ public class Main {
             log.error("Havoc will ensue if you have fewer concurrent producers than consumers");
             System.exit(3);
         }
+        if (numConcurrentTopicCreations > numTopics) {
+            log.error("You cannot concurrently create more topics than desired");
+            System.exit(4);
+        }
         String topicPrefix = settings.getProperty("default_topic_prefix");
-        Integer consumerPollIntervalMs = Integer.valueOf(settings.getProperty("consumer_poll_interval_ms"));
+        Integer readWriteIntervalMs = Integer.valueOf(settings.getProperty("read_write_interval_ms"));
+
+        Integer numMessagesToSendPerBatch = Integer.valueOf(settings.getProperty("messages_per_batch"));
+
+        Boolean keepProducing = Boolean.valueOf(settings.getProperty("keep_producing"));
 
         // Admin settings
         Map<String, Object> kafkaAdminConfig = new HashMap<>();
@@ -91,6 +100,12 @@ public class Main {
         kafkaProducerConfig.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, IntegerSerializer.class.getName());
 
         // Global counters
+        Counter topicsCreated = Counter
+                .build("numTopicsCreated", "Number of topics we've attempted to create")
+                .register();
+        Counter topicsCreateFailed = Counter
+                .build("numTopicsCreateFailed", "Number of topics we've failed to create")
+                .register();
         Counter topicsProduced = Counter
                 .build("numTopicsProduced", "Number of topics we've attempted to produce to")
                 .register();
@@ -104,26 +119,37 @@ public class Main {
                 .build("numTopicsConsumeFailed", "Number of topics we've failed to consume from")
                 .register();
 
-        try(AdminClient kafkaAdminClient = KafkaAdminClient.create(kafkaAdminConfig);
-            KafkaProducer<Integer, Integer> kafkaProducer = new KafkaProducer<>(kafkaProducerConfig)) {
+        try (AdminClient kafkaAdminClient = KafkaAdminClient.create(kafkaAdminConfig);
+             KafkaProducer<Integer, Integer> kafkaProducer = new KafkaProducer<>(kafkaProducerConfig)) {
+            ExecutorService createTopics = Executors.newFixedThreadPool(numConcurrentTopicCreations);
             ExecutorService writeTopics = Executors.newFixedThreadPool(numConcurrentProducers);
             ExecutorService consumeTopics = Executors.newFixedThreadPool(numConcurrentConsumers);
 
-            BlockingQueue<Future<Exception>> consumerFutures = new ArrayBlockingQueue<>(numConcurrentConsumers);
-
+            BlockingQueue<Future<Exception>> createTopicFutures = new ArrayBlockingQueue<>(numConcurrentTopicCreations);
             BlockingQueue<Future<Exception>> writeFutures = new ArrayBlockingQueue<>(numConcurrentProducers);
+            BlockingQueue<Future<Exception>> consumerFutures = new ArrayBlockingQueue<>(numConcurrentConsumers);
 
             log.info("Starting benchmark...");
             for (int topic = 1; topic <= numTopics; topic++) {
+                createTopicFutures.put(createTopics.submit(new CreateTopic(topic, topicPrefix, kafkaAdminClient,
+                        replicationFactor)));
+                topicsCreated.inc();
+                if (createTopicFutures.size() >= numConcurrentTopicCreations) {
+                    log.info("Created {} topics, ensuring success before producing more...", numConcurrentTopicCreations);
+                    clearQueue(createTopicFutures, topicsCreateFailed);
+                }
+
                 writeFutures.put(writeTopics.submit(new WriteTopic(topic, topicPrefix, kafkaAdminClient,
-                        replicationFactor, kafkaProducer)));
+                        replicationFactor, numMessagesToSendPerBatch,
+                        keepProducing, kafkaProducer, readWriteIntervalMs)));
                 topicsProduced.inc();
                 if (writeFutures.size() >= numConcurrentProducers) {
                     log.info("Produced {} topics, ensuring success before producing more...", numConcurrentProducers);
                     clearQueue(writeFutures, topicsProduceFailed);
                 }
-                consumerFutures.put(consumeTopics.submit(new ConsumeTopic(topic, topicPrefix, consumerPollIntervalMs,
-                        kafkaAdminClient, kafkaConsumerConfig, replicationFactor)));
+
+                consumerFutures.put(consumeTopics.submit(new ConsumeTopic(topic, topicPrefix, readWriteIntervalMs,
+                        kafkaAdminClient, kafkaConsumerConfig, replicationFactor, keepProducing)));
                 topicsConsumed.inc();
                 if (consumerFutures.size() >= numConcurrentConsumers) {
                     log.debug("Consumed {} topics, clearing queue before consuming more...", numConcurrentConsumers);
@@ -131,8 +157,9 @@ public class Main {
                 }
             }
 
-            writeTopics.shutdown();
+            createTopics.shutdown();
             try {
+                clearQueue(writeFutures, topicsProduceFailed);
                 clearQueue(consumerFutures, topicsConsumeFailed);
             } finally {
                 consumeTopics.shutdownNow();
