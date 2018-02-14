@@ -43,9 +43,10 @@ class ConsumeTopic implements Callable<Exception> {
     /**
      * @param topicId              Each topic gets a numeric id
      * @param key                  Prefix for topics created by this tool
-     * @param readWriteInterval How long should we wait before polls for new messages?
+     * @param readWriteInterval    How long should we wait before polls for consuming new messages
      * @param kafkaAdminClient
      * @param kafkaConsumerConfig
+     * @param keepProducing        Whether we are continuously producing messages rather than just producing once
      */
     public ConsumeTopic(int topicId, String key, int readWriteInterval, AdminClient kafkaAdminClient,
                         Map<String, Object> kafkaConsumerConfig, short replicationFactor, boolean keepProducing) {

@@ -39,6 +39,19 @@ class WriteTopic implements Callable<Exception> {
     private final boolean keepProducing;
     private final int readWriteInterval;
 
+    /**
+     * Produce messages thread constructor
+     *
+     * @param topicId                   Unique identifier for topic
+     * @param key                       Key for the environment
+     * @param kafkaAdminClient
+     * @param replicationFactor         Kafka's replication factor for messages
+     * @param numMessagesToSendPerBatch Number of messages to produce continously
+     * @param keepProducing             Whether we should produce one message only or keep produce thread alive and
+     *                                  produce each readWriteInterval
+     * @param kafkaProducer
+     * @param readWriteInterval         How long to wait between message production
+     */
     public WriteTopic(int topicId, String key, AdminClient kafkaAdminClient, short replicationFactor,
                       int numMessagesToSendPerBatch, boolean keepProducing,
                       KafkaProducer<Integer, Integer> kafkaProducer, int readWriteInterval) {
