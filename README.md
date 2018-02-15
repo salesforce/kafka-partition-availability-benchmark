@@ -1,7 +1,7 @@
 # kafka-partition-availability-benchmark
 
-This repository contains a Kafka partition stress test. The goal of it is to make it easier to validate changes to Kafka
-with respect how many concurrent replicated partitions it can support. 
+This repository contains a Kafka partition stress test. The goal of it is to make it easier to validate changes to 
+Kafka with respect how many concurrent replicated partitions it can support. 
 
 We want to ensure that our Kafka users have the following gaurantees: 
 
@@ -24,7 +24,8 @@ mvn package
 ## Configuration
 You can see all configurable parameters in `src/main/resources/kafka-partition-availability-benchmark.properties`
 
-The defaults are set to something you can run against a local single-broker installation of kafka. In most cases, you only probably need to set four things to put stress on a real test environment:
+The defaults are set to something you can run against a local single-broker installation of kafka. In most cases, you 
+only probably need to set four things to put stress on a real test environment:
 ```
 cat > ~/.kafka-partition-availability-benchmark.properties << EOF
 kafka.replication.factor = 3
@@ -37,9 +38,20 @@ EOF
 Depending on how powerful your test runner host is, you might be able to bump up the number of topics past `4000`. In
 our testing, `4000` was what an i3.2xlarge instance could bear before test results started to get skewed. 
 
-To get past `4000` topics, we ran this tool on multiple test runners. We recommend setting the default topic prefix to something unique per test runner by doing something like this:
+To get past `4000` topics, we ran this tool on multiple test runners. We recommend setting the default topic prefix to 
+something unique per test runner by doing something like this:
 ```
 echo "default_topic_prefix = `hostname`" >> ~/.kafka-partition-availability-benchmark.properties
+```
+
+### Measuring produce and consume at the same time
+
+By default, the benchmark will only produce one message per partition and re-consume that messages every second. To test produce continously in the same fashion and not 
+rely on re-consuming the same messages, set the following configuration options:
+```
+cat > ~/.kafka-partition-availability-benchmark.properties << EOF
+keep_producing = true
+EOF
 ```
 
 ## Running

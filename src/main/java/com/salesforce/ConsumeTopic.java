@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicInteger;
 
 class ConsumeTopic implements Callable<Exception> {
     private static final Logger log = LoggerFactory.getLogger(ConsumeTopic.class);
@@ -35,26 +34,29 @@ class ConsumeTopic implements Callable<Exception> {
 
     private final int topicId;
     private final String key;
-    private final int consumerPollInterval;
+    private final int readWriteInterval;
     private final AdminClient kafkaAdminClient;
     private final Map<String, Object> kafkaConsumerConfig;
     private final short replicationFactor;
+    private final boolean keepProducing;
 
     /**
-     * @param topicId Each topic gets a numeric id
-     * @param key Prefix for topics created by this tool
-     * @param consumerPollInterval How long should we wait before polls for new messages?
+     * @param topicId              Each topic gets a numeric id
+     * @param key                  Prefix for topics created by this tool
+     * @param readWriteInterval    How long should we wait before polls for consuming new messages
      * @param kafkaAdminClient
      * @param kafkaConsumerConfig
+     * @param keepProducing        Whether we are continuously producing messages rather than just producing once
      */
-    public ConsumeTopic(int topicId, String key, int consumerPollInterval, AdminClient kafkaAdminClient,
-                        Map<String, Object> kafkaConsumerConfig, short replicationFactor) {
+    public ConsumeTopic(int topicId, String key, int readWriteInterval, AdminClient kafkaAdminClient,
+                        Map<String, Object> kafkaConsumerConfig, short replicationFactor, boolean keepProducing) {
         this.topicId = topicId;
         this.key = key;
-        this.consumerPollInterval = consumerPollInterval;
+        this.readWriteInterval = readWriteInterval;
         this.kafkaAdminClient = kafkaAdminClient;
         this.kafkaConsumerConfig = Collections.unmodifiableMap(kafkaConsumerConfig);
         this.replicationFactor = replicationFactor;
+        this.keepProducing = keepProducing;
     }
 
     @Override
@@ -69,7 +71,6 @@ class ConsumeTopic implements Callable<Exception> {
             TopicPartition topicPartition = new TopicPartition(topicName, 0);
             consumer.assign(Collections.singleton(topicPartition));
 
-            AtomicInteger numMessages = new AtomicInteger();
             while (true) {
                 ConsumerRecords<Integer, Integer> messages;
                 Histogram.Timer consumerReceiveTimer = consumerReceiveTimeSecs.startTimer();
@@ -79,13 +80,15 @@ class ConsumeTopic implements Callable<Exception> {
                     consumerReceiveTimer.observeDuration();
                 }
                 if (messages.count() == 0) {
+                    if (keepProducing) {
+                        Thread.sleep(readWriteInterval);
+                        continue;
+                    }
                     log.debug("Ran out of messages to process for topic {}; starting from beginning", topicName);
                     consumer.seekToBeginning(Collections.singleton(topicPartition));
-                    numMessages.set(0);
-                    Thread.sleep(consumerPollInterval);
+                    Thread.sleep(readWriteInterval);
                     continue;
                 }
-                numMessages.addAndGet(messages.count());
 
                 consumerCommitTimeSecs.time(consumer::commitSync);
 
@@ -94,7 +97,7 @@ class ConsumeTopic implements Callable<Exception> {
 
                 log.debug("Last consumed message {}:{}, consumed {} messages, topic: {}",
                         lastMessage.key(), lastMessage.value(), messages.count(), topicName);
-                Thread.sleep(consumerPollInterval);
+                Thread.sleep(readWriteInterval);
             }
         } catch (Exception e) {
             log.error("Failed consume", e);
