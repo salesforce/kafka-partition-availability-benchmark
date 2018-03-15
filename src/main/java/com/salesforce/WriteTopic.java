@@ -7,6 +7,7 @@
 
 package com.salesforce;
 
+import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -29,6 +30,8 @@ class WriteTopic implements Callable<Exception> {
     private static final Histogram produceMessageTimeSecs = Histogram
             .build("produceMessageTimeSecs", "Time it takes to produce messages in ms")
             .register();
+    private static final Gauge threadsAwaitingMessageProduce = Gauge.build("threadsAwaitingMessageProduce",
+            "Number of threads that are that are waiting for message batch to be produced").register();
 
     private final int topicId;
     private final String key;
@@ -73,9 +76,11 @@ class WriteTopic implements Callable<Exception> {
             TopicVerifier.checkTopic(kafkaAdminClient, topicName, replicationFactor);
 
             // Produce one message to "warm" kafka up
+            threadsAwaitingMessageProduce.inc();
             firstMessageProduceTimeSecs.time(() ->
                     kafkaProducer.send(new ProducerRecord<>(topicName, topicId, -1)));
             log.debug("Produced first message to topic {}", topicName);
+
 
             while (keepProducing) {
                 produceMessageTimeSecs.time(() -> {
@@ -85,7 +90,9 @@ class WriteTopic implements Callable<Exception> {
                         log.debug("{}: Produced message {}", formatter.format(new Date()), topicId);
                     }
                 });
+                threadsAwaitingMessageProduce.dec();
                 Thread.sleep(readWriteInterval);
+                threadsAwaitingMessageProduce.inc();
             }
             log.debug("Produce {} messages to topic {}", numMessagesToSendPerBatch, topicName);
 

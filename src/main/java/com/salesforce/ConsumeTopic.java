@@ -7,6 +7,7 @@
 
 package com.salesforce;
 
+import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -31,6 +32,10 @@ class ConsumeTopic implements Callable<Exception> {
     private static final Histogram consumerCommitTimeSecs = Histogram
             .build("consumerCommitTimeSecs", "Time it takes to commit new offset")
             .register();
+    private static final Gauge threadsAwaitingConsume = Gauge.build("threadsAwaitingConsume",
+            "Number of threads that are that are waiting for message batch to be consumed").register();
+    private static final Gauge threadsAwaitingCommit = Gauge.build("threadsAwaitingCommit",
+            "Number of threads that are that are waiting for message batch to be committed").register();
 
     private final int topicId;
     private final String key;
@@ -71,6 +76,7 @@ class ConsumeTopic implements Callable<Exception> {
             TopicPartition topicPartition = new TopicPartition(topicName, 0);
             consumer.assign(Collections.singleton(topicPartition));
 
+            threadsAwaitingConsume.inc();
             while (true) {
                 ConsumerRecords<Integer, Integer> messages;
                 Histogram.Timer consumerReceiveTimer = consumerReceiveTimeSecs.startTimer();
@@ -81,16 +87,26 @@ class ConsumeTopic implements Callable<Exception> {
                 }
                 if (messages.count() == 0) {
                     if (keepProducing) {
+                        threadsAwaitingConsume.dec();
                         Thread.sleep(readWriteInterval);
+                        threadsAwaitingConsume.inc();
                         continue;
                     }
                     log.debug("Ran out of messages to process for topic {}; starting from beginning", topicName);
                     consumer.seekToBeginning(Collections.singleton(topicPartition));
+                    threadsAwaitingCommit.inc();
+                    consumerCommitTimeSecs.time(consumer::commitSync);
+                    threadsAwaitingCommit.dec();
+                    threadsAwaitingConsume.dec();
                     Thread.sleep(readWriteInterval);
+                    threadsAwaitingConsume.inc();
                     continue;
                 }
 
+                threadsAwaitingConsume.dec();
+                threadsAwaitingCommit.inc();
                 consumerCommitTimeSecs.time(consumer::commitSync);
+                threadsAwaitingCommit.dec();
 
                 ConsumerRecord<Integer, Integer> lastMessage =
                         messages.records(topicPartition).get(messages.count() - 1);
@@ -98,6 +114,7 @@ class ConsumeTopic implements Callable<Exception> {
                 log.debug("Last consumed message {}:{}, consumed {} messages, topic: {}",
                         lastMessage.key(), lastMessage.value(), messages.count(), topicName);
                 Thread.sleep(readWriteInterval);
+                threadsAwaitingConsume.inc();
             }
         } catch (Exception e) {
             log.error("Failed consume", e);
