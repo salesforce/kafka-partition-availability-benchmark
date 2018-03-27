@@ -49,7 +49,7 @@ class WriteTopic implements Callable<Exception> {
      * @param key                       Key for the environment
      * @param kafkaAdminClient
      * @param replicationFactor         Kafka's replication factor for messages
-     * @param numMessagesToSendPerBatch Number of messages to produce continously
+     * @param numMessagesToSendPerBatch Number of messages to produce continuously
      * @param keepProducing             Whether we should produce one message only or keep produce thread alive and
      *                                  produce each readWriteInterval
      * @param kafkaProducer
