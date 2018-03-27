@@ -3,11 +3,11 @@
 This repository contains a Kafka partition stress test. The goal of it is to make it easier to validate changes to 
 Kafka with respect how many concurrent replicated partitions it can support. 
 
-We want to ensure that our Kafka users have the following gaurantees: 
+We want to ensure that our Kafka users have the following guarantees: 
 
 1. Any topic or partition is available for consume or produce at any time
 2. Latencies are below certain SLAs for consume and produce
-3. Users can reset the consumer offset to begining and reconsume at any time
+3. Users can reset the consumer offset to beginning and reconsume at any time
 
 Given that Kafka currently (as of 02/02/18) doesn't limit the number of topics you are allowed to created, this tool
 helped us answer, "how many topics and paritions can we place on our multitenant Kafka systems before things start 
@@ -46,7 +46,7 @@ echo "default_topic_prefix = `hostname`" >> ~/.kafka-partition-availability-benc
 
 ### Measuring produce and consume at the same time
 
-By default, the benchmark will only produce one message per partition and re-consume that messages every second. To test produce continously in the same fashion and not 
+By default, the benchmark will only produce one message per partition and re-consume that messages every second. To test produce continuously in the same fashion and not 
 rely on re-consuming the same messages, set the following configuration options:
 ```
 cat > ~/.kafka-partition-availability-benchmark.properties << EOF
