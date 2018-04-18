@@ -832,28 +832,28 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "avg(rate(node_network_receive_bytes{device=\"eth0\",job=~\"zoo.+\"}[1h]))/3600",
+              "expr": "avg(rate(node_network_receive_bytes{device=\"eth0\",job=~\"zoo.+\"}[1h]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Avg ZK network receive",
               "refId": "B"
             },
             {
-              "expr": "avg(rate(node_network_transmit_bytes{device=\"eth0\",job=~\"zoo.+\"}[1h]))/3600",
+              "expr": "avg(rate(node_network_transmit_bytes{device=\"eth0\",job=~\"zoo.+\"}[1h]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Avg ZK network transmit",
               "refId": "C"
             },
             {
-              "expr": "avg(rate(node_network_receive_bytes{device=\"eth0\",job=~\"kafka.+\"}[1h]))/3600",
+              "expr": "avg(rate(node_network_receive_bytes{device=\"eth0\",job=~\"kafka.+\"}[1h]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Avg Kafka network receive",
               "refId": "A"
             },
             {
-              "expr": "avg(rate(node_network_transmit_bytes{device=\"eth0\",job=~\"kafka.+\"}[1h]))/3600",
+              "expr": "avg(rate(node_network_transmit_bytes{device=\"eth0\",job=~\"kafka.+\"}[1h]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Avg Kafka network transmit",
