@@ -10,7 +10,7 @@ We want to ensure that our Kafka users have the following guarantees:
 3. Users can reset the consumer offset to beginning and reconsume at any time
 
 Given that Kafka currently (as of 02/02/18) doesn't limit the number of topics you are allowed to created, this tool
-helped us answer, "how many topics and paritions can we place on our multitenant Kafka systems before things start 
+helped us answer, "how many topics and partitions can we place on our multitenant Kafka systems before things start 
 going downhill?"
 
 ## Building
