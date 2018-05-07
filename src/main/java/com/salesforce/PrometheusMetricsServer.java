@@ -7,6 +7,7 @@
 
 package com.salesforce;
 
+import io.prometheus.client.hotspot.DefaultExports;
 import io.prometheus.client.vertx.MetricsHandler;
 import io.vertx.core.Vertx;
 import io.vertx.ext.web.Router;
@@ -20,10 +21,12 @@ public class PrometheusMetricsServer implements Runnable {
 
     public PrometheusMetricsServer(int port) {
         this.port = port;
+        DefaultExports.initialize();
     }
 
     @Override
     public void run() {
+
         Vertx vertx = Vertx.vertx();
         Router router = Router.router(vertx);
         router.route("/metrics").handler(new MetricsHandler());

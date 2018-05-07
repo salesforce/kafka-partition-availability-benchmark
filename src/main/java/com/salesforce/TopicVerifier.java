@@ -44,9 +44,18 @@ class TopicVerifier {
                 continue;
             }
             TopicPartitionInfo partition = descriptionMap.get(topicName).partitions().get(0);
+
+            /*
+            * If the replication factor is 2 or lower, we won't have more than 1 ISR - this is mostly
+            * for local testing purposes
+             */
+            int _isr_size = 1;
+            if (replicationFactor <= 2) {
+                _isr_size = 0;
+            }
             if (!partition.leader().isEmpty()
                     && partition.replicas().size() == replicationFactor
-                    && partition.isr().size() > 1) {
+                    && partition.isr().size() > _isr_size ) {
                 topicsCreated.dec();
                 break;
             } else {

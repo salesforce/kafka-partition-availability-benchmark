@@ -7,11 +7,15 @@
 
 package com.salesforce;
 
+import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
+import io.prometheus.client.Summary;
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,14 +28,18 @@ class WriteTopic implements Callable<Exception> {
 
     private static final SimpleDateFormat formatter = new SimpleDateFormat("yyyyy-mm-dd hh:mm:ss");
 
-    private static final Histogram firstMessageProduceTimeSecs = Histogram
-            .build("firstMessageProduceTimeSecs", "First message produce latency time in ms")
+    private static final Summary summaryFirstMessageProduceTimeSecs = Summary
+            .build("summaryFirstMessageProduceTimeSecs", "First message produce latency time in ms")
             .register();
     private static final Histogram produceMessageTimeSecs = Histogram
             .build("produceMessageTimeSecs", "Time it takes to produce messages in ms")
             .register();
     private static final Gauge threadsAwaitingMessageProduce = Gauge.build("threadsAwaitingMessageProduce",
             "Number of threads that are that are waiting for message batch to be produced").register();
+
+    private static final Counter errorCounts = Counter
+            .build("writeTopicErrorCounts", "Number of errors received by producer")
+            .register();
 
     private final int topicId;
     private final String key;
@@ -77,24 +85,31 @@ class WriteTopic implements Callable<Exception> {
 
             // Produce one message to "warm" kafka up
             threadsAwaitingMessageProduce.inc();
-            firstMessageProduceTimeSecs.time(() ->
-                    kafkaProducer.send(new ProducerRecord<>(topicName, topicId, -1)));
+//            summaryFirstMessageProduceTimeSecs.time(() ->
+            //kafkaProducer.send(new ProducerRecord<>(topicName, topicId, -1)));
+            //log.debug("Produced first message to topic {}", topicName);
+            Summary.Timer firstRequestTimer = summaryFirstMessageProduceTimeSecs.startTimer();
+            kafkaProducer.send(new ProducerRecord<>(topicName, topicId, -1), new FirstWriteTopicCallback(firstRequestTimer));
+            kafkaProducer.flush();
             log.debug("Produced first message to topic {}", topicName);
-            threadsAwaitingMessageProduce.dec();
 
+            if (keepProducing) {
+                threadsAwaitingMessageProduce.dec();
+            }
 
             while (keepProducing) {
                 // TODO: Get this from properties
                 threadsAwaitingMessageProduce.inc();
+                Histogram.Timer requestTimer = produceMessageTimeSecs.startTimer();
                 for (int i = 0; i < numMessagesToSendPerBatch; i++) {
-                    Histogram.Timer requestTimer = produceMessageTimeSecs.startTimer();
-                    kafkaProducer.send(new ProducerRecord<>(topicName, topicId, i));
-                    requestTimer.observeDuration();
+                    kafkaProducer.send(new ProducerRecord<>(topicName, topicId, i), new BatchWriteTopicCallback());
                     log.debug("{}: Produced message {}", formatter.format(new Date()), topicId);
                 }
+                kafkaProducer.flush();
+                requestTimer.observeDuration();
                 threadsAwaitingMessageProduce.dec();
                 Thread.sleep(readWriteInterval);
-                log.info("Produce {} messages to topic {}", numMessagesToSendPerBatch, topicName);
+                log.debug("Produce {} messages to topic {}", numMessagesToSendPerBatch, topicName);
             }
             log.info("Produce {} messages to topic {}", numMessagesToSendPerBatch, topicName);
 
@@ -103,6 +118,38 @@ class WriteTopic implements Callable<Exception> {
         } catch (Exception e) {
             log.error("Failed to produce for topic {}", topicName, e);
             return e;
+        }
+    }
+
+    private class FirstWriteTopicCallback implements Callback {
+        Summary.Timer requestTimer = null;
+
+        public FirstWriteTopicCallback(Summary.Timer requestTimer) {
+            this.requestTimer = requestTimer;
+        }
+
+        @Override
+        public void onCompletion(RecordMetadata rm, Exception e) {
+            if ( e != null ) {
+                errorCounts.inc();
+                log.error("Callback failed for topic {}", rm.topic(), e);
+            }
+            requestTimer.observeDuration();
+        }
+    }
+
+    private class BatchWriteTopicCallback implements Callback {
+
+
+        @Override
+        public void onCompletion(RecordMetadata rm, Exception e) {
+            if ( e != null && rm != null) {
+                errorCounts.inc();
+                log.error("Callback failed for topic {}", rm.topic(), e);
+            } else if ( e != null && rm == null) {
+                errorCounts.inc();
+                log.error("Callback failed", e);
+            }
         }
     }
 }

@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -74,6 +75,16 @@ public class Main {
             System.exit(4);
         }
         String topicPrefix = settings.getProperty("default_topic_prefix");
+
+        if ( topicPrefix.contentEquals("use_hostname") ) {
+            try {
+                topicPrefix = java.net.InetAddress.getLocalHost().getHostName();
+            } catch ( UnknownHostException e ) {
+                // dns is broken :(
+                topicPrefix = "default";
+            }
+        }
+
         Integer readWriteIntervalMs = Integer.valueOf(settings.getProperty("read_write_interval_ms"));
 
         Integer numMessagesToSendPerBatch = Integer.valueOf(settings.getProperty("messages_per_batch"));
