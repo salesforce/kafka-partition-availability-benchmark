@@ -23,6 +23,12 @@
       "version": ""
     },
     {
+      "type": "panel",
+      "id": "heatmap",
+      "name": "Heatmap",
+      "version": ""
+    },
+    {
       "type": "datasource",
       "id": "prometheus",
       "name": "Prometheus",
@@ -48,7 +54,7 @@
   "hideControls": false,
   "id": null,
   "links": [],
-  "refresh": false,
+  "refresh": "5s",
   "rows": [
     {
       "collapse": false,
@@ -83,7 +89,9 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [],
+          "seriesOverrides": [
+            {}
+          ],
           "spaceLength": 10,
           "span": 6,
           "stack": false,
@@ -308,7 +316,12 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [],
+          "seriesOverrides": [
+            {
+              "alias": "WriteTopicErrorCounts",
+              "yaxis": 2
+            }
+          ],
           "spaceLength": 10,
           "span": 6,
           "stack": false,
@@ -338,11 +351,32 @@
               "refId": "C"
             },
             {
-              "expr": "histogram_quantile(0.99, sum(produceMessageTimeSecs_bucket) by (le))",
+              "expr": "histogram_quantile(0.95, sum(produceMessageTimeSecs_bucket) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "99%ile produce message ",
+              "legendFormat": "95%ile produce message ",
               "refId": "D"
+            },
+            {
+              "expr": "avg(histogram_quantile(0.95, firstMessageProduceTimeSecs_bucket))",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "First Message 95th%",
+              "refId": "E"
+            },
+            {
+              "expr": "avg(summaryFirstMessageProduceTimeSecs_sum / summaryFirstMessageProduceTimeSecs_count)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "Summary First Message Produce Time",
+              "refId": "F"
+            },
+            {
+              "expr": "sum(writeTopicErrorCounts)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "WriteTopicErrorCounts",
+              "refId": "G"
             }
           ],
           "thresholds": [],
@@ -364,7 +398,7 @@
           },
           "yaxes": [
             {
-              "format": "s",
+              "format": "ms",
               "label": "Seconds",
               "logBase": 1,
               "max": null,
@@ -372,12 +406,12 @@
               "show": true
             },
             {
-              "format": "s",
+              "format": "short",
               "label": "",
               "logBase": 1,
               "max": null,
               "min": null,
-              "show": false
+              "show": true
             }
           ]
         },
@@ -408,7 +442,16 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [],
+          "seriesOverrides": [
+            {
+              "alias": "Producer Count",
+              "yaxis": 2
+            },
+            {
+              "alias": "50 ms sla",
+              "fill": 0
+            }
+          ],
           "spaceLength": 10,
           "span": 6,
           "stack": false,
@@ -417,6 +460,7 @@
             {
               "expr": "avg(consumerReceiveTimeSecs_sum / consumerReceiveTimeSecs_count)",
               "format": "time_series",
+              "hide": false,
               "intervalFactor": 2,
               "legendFormat": "Consume latencies",
               "refId": "A"
@@ -424,23 +468,39 @@
             {
               "expr": "avg(consumerCommitTimeSecs_sum / consumerCommitTimeSecs_count)",
               "format": "time_series",
+              "hide": true,
               "intervalFactor": 2,
               "legendFormat": "Commit latencies",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(0.99, sum(rate(consumerReceiveTimeSecs_bucket[5m])) by (le))",
+              "expr": "histogram_quantile(0.95, sum(rate(consumerReceiveTimeSecs_bucket[5m])) by (le))",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "99th percentile consume latency",
+              "legendFormat": "95th percentile consume latency",
               "refId": "F"
             },
             {
-              "expr": "histogram_quantile(0.99, sum(rate(consumerCommitTimeSecs_bucket[5m])) by (le))",
+              "expr": "histogram_quantile(0.95, sum(rate(consumerCommitTimeSecs_bucket[5m])) by (le))",
+              "format": "time_series",
+              "hide": true,
+              "intervalFactor": 2,
+              "legendFormat": "95th percentile commit latency",
+              "refId": "G"
+            },
+            {
+              "expr": "count(jvm_info{job=\"producer\"})",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "99th percentile commit latency",
-              "refId": "G"
+              "legendFormat": "Producer Count",
+              "refId": "C"
+            },
+            {
+              "expr": ".050",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "50 ms sla",
+              "refId": "D"
             }
           ],
           "thresholds": [],
@@ -470,8 +530,8 @@
               "show": true
             },
             {
-              "format": "s",
-              "label": "",
+              "format": "short",
+              "label": "count",
               "logBase": 1,
               "max": null,
               "min": null,
@@ -519,49 +579,62 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [],
+          "seriesOverrides": [
+            {
+              "alias": "ZK Min",
+              "yaxis": 2
+            },
+            {
+              "alias": "ZK 5 Min",
+              "yaxis": 2
+            },
+            {
+              "alias": "ZK 15 Min",
+              "yaxis": 2
+            }
+          ],
           "spaceLength": 10,
           "span": 6,
           "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "avg(node_load1{job=~\"kafka-sys-.+\"})",
+              "expr": "avg(node_load1{job=\"kafka-sys\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Kafka Load Average Min",
               "refId": "A"
             },
             {
-              "expr": "avg(node_load5{job=~\"kafka-sys-.+\"})",
+              "expr": "avg(node_load5{job=\"kafka-sys\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Kafka Load Average 5 Min",
               "refId": "B"
             },
             {
-              "expr": "avg(node_load15{job=~\"kafka-sys-.+\"})",
+              "expr": "avg(node_load15{job=\"kafka-sys\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Kafka Load Average 15 Min",
               "refId": "C"
             },
             {
-              "expr": "avg(node_load1{job=~\"zoo-sys-.+\"})",
+              "expr": "avg(node_load1{job=\"zoo-sys\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "ZK Min",
               "refId": "D"
             },
             {
-              "expr": "avg(node_load5{job=~\"zoo-sys-.+\"})",
+              "expr": "avg(node_load5{job=\"zoo-sys\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "ZK 5 Min",
               "refId": "E"
             },
             {
-              "expr": "avg(node_load15{job=~\"zoo-sys-.+\"})",
+              "expr": "avg(node_load15{job=\"zoo-sys\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "ZK 15 Min",
@@ -639,20 +712,20 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "kafka_controller_kafkacontroller_activecontrollercount{job=\"kafka-7\"}",
+              "expr": "max(kafka_controller_kafkacontroller_activecontrollercount{job=\"kafka\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
               "refId": "A"
             },
             {
-              "expr": "rate(kafka_network_requestmetrics_requestbytes{job=~\"kafka-.+\",request=\"Fetch\"}[1h])/3600",
+              "expr": "rate(kafka_network_requestmetrics_requestbytes{job=\"kafka\",request=\"Fetch\"}[1h])",
               "format": "time_series",
               "intervalFactor": 2,
               "refId": "B"
             },
             {
-              "expr": "sum(rate(kafka_network_requestmetrics_requestbytes{job=~\"kafka-.+\",request=\"Fetch\"}[1h])/3600)",
+              "expr": "sum(rate(kafka_network_requestmetrics_requestbytes{job=\"kafka\",request=\"Fetch\"}[1h])/3600)",
               "format": "time_series",
               "intervalFactor": 2,
               "refId": "C"
@@ -825,7 +898,16 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [],
+          "seriesOverrides": [
+            {
+              "alias": "Avg ZK network receive",
+              "yaxis": 2
+            },
+            {
+              "alias": "Avg ZK network transmit",
+              "yaxis": 2
+            }
+          ],
           "spaceLength": 10,
           "span": 6,
           "stack": false,
@@ -879,7 +961,7 @@
           },
           "yaxes": [
             {
-              "format": "short",
+              "format": "Bps",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -887,7 +969,7 @@
               "show": true
             },
             {
-              "format": "short",
+              "format": "Bps",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -937,7 +1019,7 @@
           "renderer": "flot",
           "seriesOverrides": [],
           "spaceLength": 10,
-          "span": 12,
+          "span": 6,
           "stack": false,
           "steppedLine": false,
           "targets": [
@@ -966,7 +1048,146 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Incremetnal Fetch Stats (KIP-227)",
+          "title": "Incremental Fetch Stats (KIP-227)",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ]
+        },
+        {
+          "cards": {
+            "cardPadding": null,
+            "cardRound": null
+          },
+          "color": {
+            "cardColor": "#b4ff00",
+            "colorScale": "sqrt",
+            "colorScheme": "interpolateOranges",
+            "exponent": 0.5,
+            "mode": "spectrum"
+          },
+          "dataFormat": "timeseries",
+          "datasource": "${DS_TEST}",
+          "heatmap": {},
+          "highlightCards": true,
+          "id": 10,
+          "legend": {
+            "show": false
+          },
+          "links": [],
+          "span": 6,
+          "targets": [
+            {
+              "expr": "produceMessageTimeSecs_bucket/1200",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 2,
+              "refId": "A"
+            }
+          ],
+          "title": "Produce message Time Buckets",
+          "tooltip": {
+            "show": true,
+            "showHistogram": false
+          },
+          "type": "heatmap",
+          "xAxis": {
+            "show": true
+          },
+          "xBucketNumber": null,
+          "xBucketSize": null,
+          "yAxis": {
+            "decimals": null,
+            "format": "µs",
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true,
+            "splitFactor": null
+          },
+          "yBucketNumber": null,
+          "yBucketSize": null
+        }
+      ],
+      "repeat": null,
+      "repeatIteration": null,
+      "repeatRowId": null,
+      "showTitle": false,
+      "title": "Dashboard Row",
+      "titleSize": "h6"
+    },
+    {
+      "collapse": false,
+      "height": 250,
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_TEST}",
+          "fill": 1,
+          "id": 11,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 12,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Panel Title",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -1015,7 +1236,7 @@
     "list": []
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -1044,6 +1265,6 @@
     ]
   },
   "timezone": "",
-  "title": "Kafka Partition Availability Benchmark",
-  "version": 8
+  "title": "kafka-partition-availability-benchmark",
+  "version": 23
 }
