@@ -80,10 +80,12 @@ class WriteTopic implements Callable<Exception> {
             firstMessageProduceTimeSecs.time(() ->
                     kafkaProducer.send(new ProducerRecord<>(topicName, topicId, -1)));
             log.debug("Produced first message to topic {}", topicName);
+            threadsAwaitingMessageProduce.dec();
 
 
             while (keepProducing) {
                 // TODO: Get this from properties
+                threadsAwaitingMessageProduce.inc();
                 for (int i = 0; i < numMessagesToSendPerBatch; i++) {
                     Histogram.Timer requestTimer = produceMessageTimeSecs.startTimer();
                     kafkaProducer.send(new ProducerRecord<>(topicName, topicId, i));
@@ -92,9 +94,9 @@ class WriteTopic implements Callable<Exception> {
                 }
                 threadsAwaitingMessageProduce.dec();
                 Thread.sleep(readWriteInterval);
-                threadsAwaitingMessageProduce.inc();
+                log.info("Produce {} messages to topic {}", numMessagesToSendPerBatch, topicName);
             }
-            log.debug("Produce {} messages to topic {}", numMessagesToSendPerBatch, topicName);
+            log.info("Produce {} messages to topic {}", numMessagesToSendPerBatch, topicName);
 
             // TODO: Also keep producers around and periodically publish new messages
             return null;
