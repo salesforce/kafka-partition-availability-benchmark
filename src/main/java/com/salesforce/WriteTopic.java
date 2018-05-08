@@ -7,6 +7,7 @@
 
 package com.salesforce;
 
+import com.sun.prism.impl.Disposer;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
@@ -85,9 +86,6 @@ class WriteTopic implements Callable<Exception> {
 
             // Produce one message to "warm" kafka up
             threadsAwaitingMessageProduce.inc();
-//            summaryFirstMessageProduceTimeSecs.time(() ->
-            //kafkaProducer.send(new ProducerRecord<>(topicName, topicId, -1)));
-            //log.debug("Produced first message to topic {}", topicName);
             Summary.Timer firstRequestTimer = summaryFirstMessageProduceTimeSecs.startTimer();
             kafkaProducer.send(new ProducerRecord<>(topicName, topicId, -1), new FirstWriteTopicCallback(firstRequestTimer));
             kafkaProducer.flush();
@@ -129,10 +127,10 @@ class WriteTopic implements Callable<Exception> {
         }
 
         @Override
-        public void onCompletion(RecordMetadata rm, Exception e) {
-            if ( e != null ) {
+        public void onCompletion(RecordMetadata recordMetadata, Exception error) {
+            if (e != null && ) {
                 errorCounts.inc();
-                log.error("Callback failed for topic {}", rm.topic(), e);
+                log.error("Callback failed for topic {}", recordMetadata.topic(), error);
             }
             requestTimer.observeDuration();
         }
@@ -140,15 +138,14 @@ class WriteTopic implements Callable<Exception> {
 
     private class BatchWriteTopicCallback implements Callback {
 
-
         @Override
-        public void onCompletion(RecordMetadata rm, Exception e) {
-            if ( e != null && rm != null) {
+        public void onCompletion(RecordMetadata recordMetadata, Exception error) {
+            if (e != null && RecordMetadata != null) {
                 errorCounts.inc();
-                log.error("Callback failed for topic {}", rm.topic(), e);
-            } else if ( e != null && rm == null) {
+                log.error("Callback failed for topic {}", recordMetadata.topic(), error);
+            } else if ( e != null && recordMetadata == null) {
                 errorCounts.inc();
-                log.error("Callback failed", e);
+                log.error("Callback failed", error);
             }
         }
     }

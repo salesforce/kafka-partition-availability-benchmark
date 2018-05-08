@@ -76,12 +76,12 @@ public class Main {
         }
         String topicPrefix = settings.getProperty("default_topic_prefix");
 
-        if ( topicPrefix.contentEquals("use_hostname") ) {
+        if (topicPrefix.contentEquals("use_hostname")) {
             try {
                 topicPrefix = java.net.InetAddress.getLocalHost().getHostName();
             } catch ( UnknownHostException e ) {
-                // dns is broken :(
-                topicPrefix = "default";
+                log.warn("Unable to resolve DNS", e);
+                System.exit(1);
             }
         }
 

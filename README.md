@@ -35,13 +35,21 @@ kafka.brokers = my_test_kafka:9092
 EOF
 ```
 
+### Automagical topic name generation
+
+If you set `default_topic_prefix` in `~/.kafka-partition-availability-benchmark.properties`, the
+client will attempt to perform a lookup of your hostname and use that instead.  This may fail because
+your DNS resolver isn't configured properly, or your hostname doesn't exist in `/etc/hosts`.  Caveat emptor.
+
+### Tuning
+
 Depending on how powerful your test runner host is, you might be able to bump up the number of topics past `4000`. In
 our testing, `4000` was what an i3.2xlarge instance could bear before test results started to get skewed. 
 
 To get past `4000` topics, we ran this tool on multiple test runners. We recommend setting the default topic prefix to 
 something unique per test runner by doing something like this:
 ```
-echo "default_topic_prefix = `hostname`" >> ~/.kafka-partition-availability-benchmark.properties
+echo "default_topic_prefix = use_hostname" >> ~/.kafka-partition-availability-benchmark.properties
 ```
 
 ### Measuring produce and consume at the same time
@@ -67,3 +75,6 @@ for test_runner in ${test_runners}; do
     ssh ${test_runner} 'for pr in `pgrep -f kafka_partition_availability_benchmark`; do sudo prlimit -n50000:50000 -p $pr; done';
 done
 ```
+
+However, it is highly suggested you increase the number of open file handles by setting the values in
+`/etc/security/limits.conf` before launching this utility.
