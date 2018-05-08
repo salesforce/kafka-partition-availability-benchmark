@@ -145,7 +145,7 @@ class WriteTopic implements Callable<Exception> {
             if (error != null && recordMetadata != null) {
                 errorCounts.inc();
                 log.error("Callback failed for topic {}", recordMetadata.topic(), error);
-            } else if (error != null && recordMetadata == null) {
+            } else if (error != null) {
                 errorCounts.inc();
                 log.error("Callback failed", error);
             }

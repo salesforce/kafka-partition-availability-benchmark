@@ -49,13 +49,13 @@ class TopicVerifier {
             * If the replication factor is 2 or lower, we won't have more than 1 ISR - this is mostly
             * for local testing purposes
              */
-            int _isrSize = 1;
+            int isrSize = 1;
             if (replicationFactor <= 2) {
-                _isrSize = 0;
+                isrSize = 0;
             }
             if (!partition.leader().isEmpty()
                     && partition.replicas().size() == replicationFactor
-                    && partition.isr().size() > _isrSize ) {
+                    && partition.isr().size() > isrSize ) {
                 topicsCreated.dec();
                 break;
             } else {

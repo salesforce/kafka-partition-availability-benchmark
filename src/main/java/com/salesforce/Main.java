@@ -79,8 +79,8 @@ public class Main {
         if (topicPrefix.contentEquals("use_hostname")) {
             try {
                 topicPrefix = java.net.InetAddress.getLocalHost().getHostName();
-            } catch ( UnknownHostException e ) {
-                log.warn("Unable to resolve DNS", e);
+            } catch (UnknownHostException unknownHost) {
+                log.warn("Unable to resolve DNS", unknownHost);
                 System.exit(1);
             }
         }
