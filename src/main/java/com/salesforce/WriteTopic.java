@@ -128,9 +128,11 @@ class WriteTopic implements Callable<Exception> {
 
         @Override
         public void onCompletion(RecordMetadata recordMetadata, Exception error) {
-            if (e != null && ) {
+            if (error != null && recordMetadata != null) {
                 errorCounts.inc();
-                log.error("Callback failed for topic {}", recordMetadata.topic(), error);
+                log.error("Callback failed for first message on topic {}", recordMetadata.topic(), error);
+            } else if (error != null) {
+                log.error("Callback failed for first message", error);
             }
             requestTimer.observeDuration();
         }
@@ -140,10 +142,10 @@ class WriteTopic implements Callable<Exception> {
 
         @Override
         public void onCompletion(RecordMetadata recordMetadata, Exception error) {
-            if (e != null && RecordMetadata != null) {
+            if (error != null && recordMetadata != null) {
                 errorCounts.inc();
                 log.error("Callback failed for topic {}", recordMetadata.topic(), error);
-            } else if ( e != null && recordMetadata == null) {
+            } else if (error != null && recordMetadata == null) {
                 errorCounts.inc();
                 log.error("Callback failed", error);
             }
