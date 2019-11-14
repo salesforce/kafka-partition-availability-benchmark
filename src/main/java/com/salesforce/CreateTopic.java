@@ -7,7 +7,8 @@
 
 package com.salesforce;
 
-import io.prometheus.client.Histogram;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.slf4j.Logger;
@@ -20,20 +21,21 @@ import java.util.concurrent.Callable;
 public class CreateTopic implements Callable<Exception> {
     private static final Logger log = LoggerFactory.getLogger(CreateTopic.class);
 
-    private static final Histogram topicCreateTimeSecs = Histogram
-            .build("topicCreateTimeSecs", "Topic create time in ms")
-            .register();
-
     private final int topicId;
     private final String key;
     private final AdminClient kafkaAdminClient;
     private final short replicationFactor;
+    private final Timer topicCreateTimeNanos;
+    private final Counter topicsAwaitingCreation;
 
-    public CreateTopic(int topicId, String key, AdminClient kafkaAdminClient, short replicationFactor) {
+    public CreateTopic(int topicId, String key, AdminClient kafkaAdminClient, short replicationFactor,
+                       Timer topicCreateTimeNanos, Counter topicsAwaitingCreation) {
         this.topicId = topicId;
         this.key = key;
         this.kafkaAdminClient = kafkaAdminClient;
         this.replicationFactor = replicationFactor;
+        this.topicCreateTimeNanos = topicCreateTimeNanos;
+        this.topicsAwaitingCreation = topicsAwaitingCreation;
     }
 
     @Override
@@ -45,9 +47,9 @@ public class CreateTopic implements Callable<Exception> {
         kafkaAdminClient.createTopics(topic);
 
         // Wait for topic to be created and for leader election to happen
-        topicCreateTimeSecs.time(() -> {
+        topicCreateTimeNanos.record(() -> {
             try {
-                TopicVerifier.checkTopic(kafkaAdminClient, topicName, replicationFactor);
+                TopicVerifier.checkTopic(kafkaAdminClient, topicName, replicationFactor, topicsAwaitingCreation);
             } catch (InterruptedException e) {
                 log.error("Unable to record topic creation", e);
             }
